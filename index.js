@@ -44,8 +44,8 @@ app.post('/reservar', async (req, res) => {
 
         // 2. Insertamos la cita (con la lógica de duración que ya teníamos)
         const queryCita = `
-            INSERT INTO citas (servicio_id, especialista_id, cliente_id, fecha_inicio, fecha_fin, codigo_corto) 
-            SELECT $1, $2, $3, $4::timestamp, ($4::timestamp + (duracion_minutos || ' minutes')::interval), $5
+            INSERT INTO citas (servicio_id, especialista_id, cliente_id, fecha_inicio, fecha_fin, estado, codigo_corto) 
+            SELECT $1, $2, $3, $4::timestamp, ($4::timestamp + (duracion_minutos || ' minutes')::interval),'pendiente', $5
             FROM servicios WHERE id = $1
             RETURNING *;
         `;
