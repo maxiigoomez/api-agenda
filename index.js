@@ -122,6 +122,40 @@ app.get('/disponibilidad', async (req, res) => {
     }
 });
 
+// 1. Buscar cita por código
+app.get('/consultar/:codigo', async (req, res) => {
+    try {
+        const { codigo } = req.params;
+        const result = await pool.query(
+            `SELECT c.*, s.nombre as servicio, s.precio, e.nombre as especialista
+             FROM citas c 
+             JOIN servicios s ON c.servicio_id = s.id 
+             JOIN especialistas e ON c.especialista_id = e.id
+             WHERE c.codigo_corto = $1`, 
+            [codigo.toUpperCase()]
+        );
+        if (result.rows.length === 0) return res.status(404).json({ error: "Código no encontrado" });
+        res.json(result.rows[0]);
+    } catch (err) {
+        res.status(500).json({ error: "Error al consultar" });
+    }
+});
+
+// 2. Cancelar cita por código
+app.patch('/cancelar/:codigo', async (req, res) => {
+    try {
+        const { codigo } = req.params;
+        const result = await pool.query(
+            "UPDATE citas SET estado = 'cancelada' WHERE codigo_corto = $1 RETURNING *",
+            [codigo.toUpperCase()]
+        );
+        if (result.rows.length === 0) return res.status(404).json({ error: "Código no encontrado" });
+        res.json({ mensaje: "Cita cancelada correctamente" });
+    } catch (err) {
+        res.status(500).json({ error: "Error al cancelar" });
+    }
+});
+
 // Función para generar un código tipo LK-123
 function generarCodigoLinkia() {
     const letras = "ABCDEFGHJKLMNPQRSTUVWXYZ"; // Evitamos O e I para no confundir con 0 y 1
