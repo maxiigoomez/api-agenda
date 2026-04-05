@@ -39,16 +39,36 @@ app.post('/reservar', async (req, res) => {
     
     // 3. Insertamos la cita
     const nuevaCita = await pool.query(
-      `INSERT INTO citas (servicio_id, especialista_id, cliente_id, fecha_inicio, fecha_fin, pago_limite) 
-       VALUES ($1, $2, $3, $4, $4::timestamp + interval '1 hour', now() + interval '24 hours') RETURNING *`,
-      [servicio_id, especialista_id, cliente.rows[0].id, fecha_inicio]
-    );
+            `INSERT INTO citas (servicio_id, especialista_id, cliente_id, fecha_inicio, fecha_fin, codigo_corto) 
+             VALUES ($1, $2, $3, $4, $4::timestamp + interval '1 hour', $5) RETURNING *`,
+            [servicio_id, especialista_id, cliente_id, fecha_inicio, codigoUnico]
+        );
 
-    res.json({ mensaje: "Reserva creada con éxito", cita: nuevaCita.rows[0] });
+        // 3. Devolvemos el código al frontend
+        res.json({ 
+            mensaje: "Reserva exitosa", 
+            codigo: codigoUnico, 
+            cita: nuevaCita.rows[0] 
+        });
   } catch (err) {
     res.status(500).json({ error: "Error al reservar: " + err.message });
   }
 });
+
+// Función para generar un código tipo LK-123
+function generarCodigoLinkia() {
+    const letras = "ABCDEFGHJKLMNPQRSTUVWXYZ"; // Evitamos O e I para no confundir con 0 y 1
+    const numeros = "23456789";
+    
+    let result = "LK-"; // Prefijo de tu marca
+    for (let i = 0; i < 2; i++) {
+        result += letras.charAt(Math.floor(Math.random() * letras.length));
+    }
+    for (let i = 0; i < 3; i++) {
+        result += numeros.charAt(Math.floor(Math.random() * numeros.length));
+    }
+    return result; // Ejemplo: LK-RF458
+}
 
 // Iniciar el servidor
 const PORT = process.env.PORT || 3000;
