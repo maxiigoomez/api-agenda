@@ -25,34 +25,48 @@ app.get('/servicios', async (req, res) => {
 
 // RUTA 2: Crear una reserva (El botón de "Agendar")
 app.post('/reservar', async (req, res) => {
-  const { cliente_nombre, telefono, servicio_id, especialista_id, fecha_inicio } = req.body;
-
-  try {
-    // 1. Primero creamos al cliente (o lo buscamos)
-    const cliente = await pool.query(
-      'INSERT INTO clientes (nombre, telefono) VALUES ($1, $2) RETURNING id',
-      [cliente_nombre, telefono]
-    );
-
-    // 2. Calculamos la fecha de fin y el pago límite (Lógica de negocio)
-    // Para simplificar, aquí podrías llamar a una función que sume la duración del servicio
+    const { cliente_nombre, telefono, servicio_id, especialista_id, fecha_inicio } = req.body;
     
-    // 3. Insertamos la cita
-    const nuevaCita = await pool.query(
-            `INSERT INTO citas (servicio_id, especialista_id, cliente_id, fecha_inicio, fecha_fin, codigo_corto) 
-             VALUES ($1, $2, $3, $4, $4::timestamp + interval '1 hour', $5) RETURNING *`,
+    // Generamos el código único para la gestión
+    const codigoUnico = generarCodigoLinkia(); 
+
+    try {
+        // 1. Insertamos el cliente y OBTENEMOS su ID
+        const resultadoCliente = await pool.query(
+            'INSERT INTO clientes (nombre, telefono) VALUES ($1, $2) RETURNING id',
+            [cliente_nombre, telefono]
+        );
+
+        // AQUÍ ESTABA EL ERROR: Extraemos el ID del resultado
+        const cliente_id = resultadoCliente.rows[0].id;
+
+        // 2. Ahora sí, insertamos la cita usando el cliente_id que acabamos de crear
+        const nuevaCita = await pool.query(
+            `INSERT INTO citas (
+                servicio_id, 
+                especialista_id, 
+                cliente_id, 
+                fecha_inicio, 
+                fecha_fin, 
+                codigo_corto,
+                pago_limite
+            ) 
+            VALUES ($1, $2, $3, $4, $4::timestamp + interval '1 hour', $5, now() + interval '24 hours') 
+            RETURNING *`,
             [servicio_id, especialista_id, cliente_id, fecha_inicio, codigoUnico]
         );
 
-        // 3. Devolvemos el código al frontend
+        // 3. Devolvemos la respuesta exitosa con el código para el cliente
         res.json({ 
-            mensaje: "Reserva exitosa", 
-            codigo: codigoUnico, 
+            mensaje: "Reserva creada con éxito", 
+            codigo: codigoUnico,
             cita: nuevaCita.rows[0] 
         });
-  } catch (err) {
-    res.status(500).json({ error: "Error al reservar: " + err.message });
-  }
+
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Error al reservar: " + err.message });
+    }
 });
 
 // Función para generar un código tipo LK-123
