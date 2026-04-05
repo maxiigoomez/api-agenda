@@ -163,7 +163,7 @@ app.patch('/reagendar/:codigo', async (req, res) => {
     try {
         // 1. Verificamos primero si la cita existe y si ya está pagada
         const citaPrevia = await pool.query(
-            "SELECT pago_estado FROM citas WHERE codigo_corto = $1",
+            "SELECT estado FROM citas WHERE codigo_corto = $1",
             [codigo.toUpperCase()]
         );
 
@@ -173,7 +173,7 @@ app.patch('/reagendar/:codigo', async (req, res) => {
 
         // RESTRICCIÓN DE SEÑA:
         // Ajusta 'confirmado' según cómo guardes el pago en tu DB (puede ser 'pagado', 1, true, etc.)
-        if (citaPrevia.rows[0].pago_estado !== 'confirmado') {
+        if (citaPrevia.rows[0].estado !== 'confirmado') {
             return res.status(403).json({ 
                 error: "Debes abonar la seña antes de poder reagendar tu cita." 
             });
