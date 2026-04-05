@@ -126,18 +126,26 @@ app.get('/disponibilidad', async (req, res) => {
 app.get('/consultar/:codigo', async (req, res) => {
     try {
         const { codigo } = req.params;
+        
+        // Añadimos la condición final: AND c.estado != 'cancelada'
         const result = await pool.query(
             `SELECT c.*, s.nombre as servicio, s.precio, e.nombre as especialista
              FROM citas c 
              JOIN servicios s ON c.servicio_id = s.id 
              JOIN especialistas e ON c.especialista_id = e.id
-             WHERE c.codigo_corto = $1`, 
+             WHERE c.codigo_corto = $1 AND c.estado != 'cancelada'`, 
             [codigo.toUpperCase()]
         );
-        if (result.rows.length === 0) return res.status(404).json({ error: "Código no encontrado" });
+
+        if (result.rows.length === 0) {
+            // Enviamos un 404 porque para el sistema esa cita "no existe"
+            return res.status(404).json({ error: "El código es inválido o la cita ya no está activa." });
+        }
+
         res.json(result.rows[0]);
     } catch (err) {
-        res.status(500).json({ error: "Error al consultar" });
+        console.error(err);
+        res.status(500).json({ error: "Error interno del servidor" });
     }
 });
 
