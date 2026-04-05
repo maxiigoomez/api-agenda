@@ -167,13 +167,13 @@ app.patch('/reagendar/:codigo', async (req, res) => {
             [codigo.toUpperCase()]
         );
 
-        if (citaPrevia.rows.length === 0 || citaPrevia.rows[0].pago_estado === 'cancelada') {
+        if (citaPrevia.rows.length === 0) {
             return res.status(404).json({ error: "Cita no encontrada" });
         }
 
         // RESTRICCIÓN DE SEÑA:
         // Ajusta 'confirmado' según cómo guardes el pago en tu DB (puede ser 'pagado', 1, true, etc.)
-        if (citaPrevia.rows[0].pago_estado !== 'confirmado' || citaPrevia.rows[0].pago_estado !== 'reagendada') {
+        if (citaPrevia.rows[0].pago_estado !== 'confirmado') {
             return res.status(403).json({ 
                 error: "Debes abonar la seña antes de poder reagendar tu cita." 
             });
