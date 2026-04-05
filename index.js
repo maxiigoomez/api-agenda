@@ -26,23 +26,20 @@ app.get('/servicios', async (req, res) => {
 // RUTA 2: Crear una reserva (El botón de "Agendar")
 app.post('/reservar', async (req, res) => {
     const { cliente_nombre, telefono, servicio_id, especialista_id, fecha_inicio } = req.body;
-    
-    // Generamos el código único para la gestión
     const codigoUnico = generarCodigoLinkia(); 
 
     try {
-        // 1. Insertamos el cliente y OBTENEMOS su ID
-        const resultadoCliente = await pool.query(
+        // 1. Insertamos o buscamos al cliente (Retornando su ID)
+        const resCliente = await pool.query(
             'INSERT INTO clientes (nombre, telefono) VALUES ($1, $2) RETURNING id',
             [cliente_nombre, telefono]
         );
+        const cliente_id = resCliente.rows[0].id;
 
-        // AQUÍ ESTABA EL ERROR: Extraemos el ID del resultado
-        const cliente_id = resultadoCliente.rows[0].id;
-
-        // 2. Ahora sí, insertamos la cita usando el cliente_id que acabamos de crear
-        const nuevaCita = await pool.query(
-            `INSERT INTO citas (
+        // 2. Insertamos la cita calculando la fecha_fin dinámicamente
+        // Explicación: Tomamos la duración del servicio y la sumamos como intervalo de minutos
+        const queryCita = `
+            INSERT INTO citas (
                 servicio_id, 
                 especialista_id, 
                 cliente_id, 
@@ -51,14 +48,30 @@ app.post('/reservar', async (req, res) => {
                 codigo_corto,
                 pago_limite
             ) 
-            VALUES ($1, $2, $3, $4, $4::timestamp + interval '1 hour', $5, now() + interval '24 hours') 
-            RETURNING *`,
-            [servicio_id, especialista_id, cliente_id, fecha_inicio, codigoUnico]
-        );
+            SELECT 
+                $1, $2, $3, $4::timestamp, 
+                ($4::timestamp + (duracion_minutos || ' minutes')::interval), 
+                $5, 
+                now() + interval '24 hours'
+            FROM servicios 
+            WHERE id = $1
+            RETURNING *;
+        `;
 
-        // 3. Devolvemos la respuesta exitosa con el código para el cliente
+        const nuevaCita = await pool.query(queryCita, [
+            servicio_id, 
+            especialista_id, 
+            cliente_id, 
+            fecha_inicio, 
+            codigoUnico
+        ]);
+
+        if (nuevaCita.rows.length === 0) {
+            return res.status(400).json({ error: "El servicio seleccionado no existe." });
+        }
+
         res.json({ 
-            mensaje: "Reserva creada con éxito", 
+            mensaje: "Reserva exitosa", 
             codigo: codigoUnico,
             cita: nuevaCita.rows[0] 
         });
