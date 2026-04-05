@@ -158,10 +158,28 @@ app.patch('/cancelar/:codigo', async (req, res) => {
 
 app.patch('/reagendar/:codigo', async (req, res) => {
     const { codigo } = req.params;
-    const { nueva_fecha } = req.body; // Ejemplo: "2026-04-10T15:30:00"
+    const { nueva_fecha } = req.body;
 
     try {
-        // Actualizamos la fecha_inicio y recalculamos la fecha_fin en la misma query
+        // 1. Verificamos primero si la cita existe y si ya está pagada
+        const citaPrevia = await pool.query(
+            "SELECT pago_estado FROM citas WHERE codigo_corto = $1",
+            [codigo.toUpperCase()]
+        );
+
+        if (citaPrevia.rows.length === 0 || citaPrevia.rows[0].pago_estado === 'cancelada') {
+            return res.status(404).json({ error: "Cita no encontrada" });
+        }
+
+        // RESTRICCIÓN DE SEÑA:
+        // Ajusta 'confirmado' según cómo guardes el pago en tu DB (puede ser 'pagado', 1, true, etc.)
+        if (citaPrevia.rows[0].pago_estado !== 'confirmado' || citaPrevia.rows[0].pago_estado !== 'reagendada') {
+            return res.status(403).json({ 
+                error: "Debes abonar la seña antes de poder reagendar tu cita." 
+            });
+        }
+
+        // 2. Si pasó la validación, procedemos con el UPDATE que ya teníamos
         const result = await pool.query(
             `UPDATE citas 
              SET 
@@ -174,14 +192,9 @@ app.patch('/reagendar/:codigo', async (req, res) => {
             [nueva_fecha, codigo.toUpperCase()]
         );
 
-        if (result.rows.length === 0) {
-            return res.status(404).json({ error: "Cita no encontrada" });
-        }
-
-        res.json({ mensaje: "Cita reagendada con éxito", cita: result.rows[0] });
+        res.json({ mensaje: "Cita reagendada con éxito" });
     } catch (err) {
-        console.error(err);
-        res.status(500).json({ error: "Error al reagendar la cita" });
+        res.status(500).json({ error: "Error en el servidor" });
     }
 });
 
