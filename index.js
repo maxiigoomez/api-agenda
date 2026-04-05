@@ -172,12 +172,19 @@ app.patch('/reagendar/:codigo', async (req, res) => {
         }
 
         // RESTRICCIÓN DE SEÑA:
-        // Ajusta 'confirmado' según cómo guardes el pago en tu DB (puede ser 'pagado', 1, true, etc.)
-        if (citaPrevia.rows[0].estado !== 'confirmado') {
-            return res.status(403).json({ 
-                error: "Debes abonar la seña antes de poder reagendar tu cita." 
-            });
-        }
+        // Ajusta 'confirmada' según cómo guardes el pago en tu DB (puede ser 'pagado', 1, true, etc.)
+        if (citaPrevia.rows[0].estado === 'pendiente') {
+    return res.status(403).json({ 
+        error: "Debes abonar la seña antes de poder reagendar tu cita." 
+    });
+}
+
+// 2. Si el estado es 'cancelada', tampoco debería poder reagendar
+if (citaPrevia.rows[0].estado === 'cancelada') {
+    return res.status(403).json({ 
+        error: "Esta cita ha sido cancelada y no puede ser reagendada." 
+    });
+}
 
         // 2. Si pasó la validación, procedemos con el UPDATE que ya teníamos
         const result = await pool.query(
