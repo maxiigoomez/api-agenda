@@ -29,56 +29,39 @@ app.post('/reservar', async (req, res) => {
     const codigoUnico = generarCodigoLinkia(); 
 
     try {
-        // 1. Insertamos o buscamos al cliente (Retornando su ID)
-        const resCliente = await pool.query(
-            'INSERT INTO clientes (nombre, telefono) VALUES ($1, $2) RETURNING id',
+        // 1. UPSERT: Inserta si no existe, o simplemente ignora si ya existe el teléfono
+        // Usamos 'RETURNING id' para tener siempre el ID del cliente (nuevo o viejo)
+        let resCliente = await pool.query(
+            `INSERT INTO clientes (nombre, telefono) 
+             VALUES ($1, $2) 
+             ON CONFLICT (telefono) DO UPDATE SET nombre = EXCLUDED.nombre
+             RETURNING id`,
             [cliente_nombre, telefono]
         );
+
+        // Si por alguna razón el UPDATE no devolvió filas (raro), buscamos el ID
         const cliente_id = resCliente.rows[0].id;
 
-        // 2. Insertamos la cita calculando la fecha_fin dinámicamente
-        // Explicación: Tomamos la duración del servicio y la sumamos como intervalo de minutos
+        // 2. Insertamos la cita (con la lógica de duración que ya teníamos)
         const queryCita = `
-            INSERT INTO citas (
-                servicio_id, 
-                especialista_id, 
-                cliente_id, 
-                fecha_inicio, 
-                fecha_fin, 
-                codigo_corto,
-                pago_limite
-            ) 
-            SELECT 
-                $1, $2, $3, $4::timestamp, 
-                ($4::timestamp + (duracion_minutos || ' minutes')::interval), 
-                $5, 
-                now() + interval '24 hours'
-            FROM servicios 
-            WHERE id = $1
+            INSERT INTO citas (servicio_id, especialista_id, cliente_id, fecha_inicio, fecha_fin, codigo_corto) 
+            SELECT $1, $2, $3, $4::timestamp, ($4::timestamp + (duracion_minutos || ' minutes')::interval), $5
+            FROM servicios WHERE id = $1
             RETURNING *;
         `;
 
         const nuevaCita = await pool.query(queryCita, [
-            servicio_id, 
-            especialista_id, 
-            cliente_id, 
-            fecha_inicio, 
-            codigoUnico
+            servicio_id, especialista_id, cliente_id, fecha_inicio, codigoUnico
         ]);
-
-        if (nuevaCita.rows.length === 0) {
-            return res.status(400).json({ error: "El servicio seleccionado no existe." });
-        }
 
         res.json({ 
             mensaje: "Reserva exitosa", 
             codigo: codigoUnico,
-            cita: nuevaCita.rows[0] 
+            cliente_id: cliente_id // Ahora puedes saber si es recurrente
         });
 
     } catch (err) {
-        console.error(err);
-        res.status(500).json({ error: "Error al reservar: " + err.message });
+        res.status(500).json({ error: err.message });
     }
 });
 
