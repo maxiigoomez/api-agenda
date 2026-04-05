@@ -156,6 +156,35 @@ app.patch('/cancelar/:codigo', async (req, res) => {
     }
 });
 
+app.patch('/reagendar/:codigo', async (req, res) => {
+    const { codigo } = req.params;
+    const { nueva_fecha } = req.body; // Ejemplo: "2026-04-10T15:30:00"
+
+    try {
+        // Actualizamos la fecha_inicio y recalculamos la fecha_fin en la misma query
+        const result = await pool.query(
+            `UPDATE citas 
+             SET 
+                fecha_inicio = $1::timestamp,
+                fecha_fin = ($1::timestamp + (s.duracion_minutos || ' minutes')::interval),
+                estado = 'reagendada'
+             FROM servicios s
+             WHERE citas.servicio_id = s.id AND citas.codigo_corto = $2
+             RETURNING citas.*`,
+            [nueva_fecha, codigo.toUpperCase()]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: "Cita no encontrada" });
+        }
+
+        res.json({ mensaje: "Cita reagendada con éxito", cita: result.rows[0] });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Error al reagendar la cita" });
+    }
+});
+
 // Función para generar un código tipo LK-123
 function generarCodigoLinkia() {
     const letras = "ABCDEFGHJKLMNPQRSTUVWXYZ"; // Evitamos O e I para no confundir con 0 y 1
